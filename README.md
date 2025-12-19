@@ -67,7 +67,3 @@ TMR（三重化）とコンフィグレーション・スクラビング（定�
 ## ライセンス
 
 MIT License
-
----
-**Author:** Naoki Nagamine  
-**Affiliation:** Okayama University

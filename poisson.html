@@ -296,7 +296,7 @@
 
     <div id="qmr" class="content">
         <div class="container">
-            <h2>MTBF予測 (スクラビング/QMR 5重化)</h2>
+            <h2>MTBF予測 (スクラビング/QMR)</h2>
 
             <div class="mode-selection">
                 <strong>SEU率入力方式:</strong><br>
@@ -342,7 +342,7 @@
             <h3>このツールの使い方</h3>
             <ol>
                 <li><strong>1ビットSEU率</strong>: デバイスのデータシートや放射線試験結果から得られる、1秒間に1ビットが反転する確率を入力します。</li>
-                <li><strong>評価レジスタ数</strong>: QMR（5重化）などの保護対象となっているレジスタ（フリップフロップ）の総数を入力します。</li>
+                <li><strong>評価レジスタ数</strong>: QMR（五重化）などの保護対象となっているレジスタ（フリップフロップ）の総数を入力します。</li>
                 <li><strong>スクラビング周波数</strong>: メモリのエラーを定期的に修復（スクラビング）するサイクルの周波数を入力します。</li>
             </ol>
 
@@ -676,7 +676,7 @@
                     </div>
 
                     <div class="step">
-                        <div class="step-title">Step 2: 確率計算 (QMR 5重化)</div>
+                        <div class="step-title">Step 2: 確率計算 (QMR 五重化)</div>
                         
                         <p><strong>1. 1セットがQMRで保護される確率 \\(P(safe_{bit})\\)</strong><br>
                         (エラーが0, 1, 2回で済む確率)</p>
@@ -696,7 +696,7 @@
                     </div>
 
                     <div class="final-answer">
-                        <h3>予測 MTBF (QMR 5重化)</h3>
+                        <h3>予測 MTBF (QMR 五重化)</h3>
                         $$ MTBF = \\frac{T_{cycle}}{P(fail)} $$
                         <div style="font-size: 1.4em; font-weight:bold; color: #8e44ad; margin:10px 0;">
                             ${mtbf_years.toSignificantDigits(6).toString()} 年

@@ -468,7 +468,7 @@
                 <div class="step"><div class="step-title">Step 1: 値の代入</div>
                 ${calcMsg}
                 $$ P(X=${k}) = \\frac{e^{-${lam.toSignificantDigits(6)}} \\times ${lam.toSignificantDigits(6)}^{${k}}}{${k}!} $$</div>
-                <div class="step"><div class="step-title">Step 2: 結果 (高精度計算)</div>確率: <strong>${prob.times(100).toSignificantDigits(6).toString()} %</strong></div>
+                <div class="step"><div class="step-title">Step 2: 結果</div>確率: <strong>${prob.times(100).toSignificantDigits(6).toString()} %</strong></div>
             `;
             MathJax.typesetPromise();
         }
@@ -654,6 +654,8 @@
                 // No TMR (Reference)
                 const sys_error_rate = seu.times(n_units);
                 const mtbf_no_tmr_sec = sys_error_rate.isZero() ? new Decimal(Infinity) : new Decimal(1).div(sys_error_rate);
+                // 【修正1】hoursの計算を追加
+                const mtbf_no_tmr_hours = mtbf_no_tmr_sec.div(3600);
                 const mtbf_no_tmr_years = mtbf_no_tmr_sec.div(3600).div(24).div(365.25);
 
                 let ratio = "∞";
@@ -706,8 +708,13 @@
                     </div>
 
                     <div class="comparison-box">
-                        <strong>【参考】対策なし(No TMR)の場合:</strong><br>
+                        <strong>【参考】対策なし(No QMR)の場合:</strong><br>
+                        $$ MTBF_{raw} = \\frac{1}{SEU \\times N} $$
                         MTBF: ${mtbf_no_tmr_years.toSignificantDigits(5).toString()} 年<br>
+                        <span style="font-size: 0.9em; color:#555;">
+                           ≈ ${mtbf_no_tmr_hours.toSignificantDigits(5).toString()} 時間 <br>
+                           ≈ ${mtbf_no_tmr_sec.toSignificantDigits(5).toString()} 秒
+                        </span>
                         <hr style="border:0; border-top:1px dashed #1abc9c; margin:10px 0;">
                         <strong>改善倍率: 約 ${ratio} 倍</strong>
                     </div>

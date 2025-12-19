@@ -148,6 +148,7 @@
     <div class="tab-container">
         <div class="tab active" onclick="switchTab('basic')">① 基本のポアソン分布</div>
         <div class="tab" onclick="switchTab('mtbf')">② MTBF予測 (耐放射線/TMR)</div>
+        <div class="tab" onclick="switchTab('qmr')">③ MTBF予測 (耐放射線/QMR)</div>
     </div>
 
     <div id="basic" class="content active">
@@ -293,6 +294,83 @@
         </div>
     </div>
 
+    <div id="qmr" class="content">
+        <div class="container">
+            <h2>MTBF予測 (スクラビング/QMR 5重化)</h2>
+
+            <div class="mode-selection">
+                <strong>SEU率入力方式:</strong><br>
+                <label><input type="radio" name="seu_mode_qmr" value="direct" checked onchange="toggleSeuModeQmr()"> SEU率を直接入力</label>
+                <label><input type="radio" name="seu_mode_qmr" value="calc" onchange="toggleSeuModeQmr()"> 実測値から算出</label>
+            </div>
+
+            <div id="seu_calc_group_qmr" class="calc-inputs">
+                <div class="input-group">
+                    <label for="seu_count_qmr">SEU発生総数 (カウント):</label>
+                    <input type="number" id="seu_count_qmr" placeholder="例: 50">
+                    <span class="unit">[errors]</span>
+                </div>
+                <div class="input-group">
+                    <label for="seu_time_qmr">総試験時間 (秒):</label>
+                    <input type="number" id="seu_time_qmr" placeholder="例: 3600">
+                    <span class="unit">[sec]</span>
+                </div>
+                <small style="color:#666;">※ SEU率 = 発生総数 ÷ 総試験時間 で計算します。</small>
+            </div>
+
+            <div class="input-group" id="seu_direct_group_qmr">
+                <label for="seuRate_qmr">1bitあたりの平均ソフトエラー観測数（1秒）:</label>
+                <input type="text" id="seuRate_qmr" placeholder="例: 0.0012">
+                <span class="unit">[errors/bit/sec]</span>
+            </div>
+
+            <div class="input-group">
+                <label for="numUnits_qmr">評価レジスタ数 (N):</label>
+                <input type="number" id="numUnits_qmr" placeholder="例: 415">
+                <span class="unit">[bits]</span>
+            </div>
+            <div class="input-group">
+                <label for="freq_qmr">スクラビング周波数:</label>
+                <input type="text" id="freq_qmr" placeholder="例: 20000000">
+                <span class="unit">[Hz]</span>
+            </div>
+            <button onclick="calculateMTBFQMR()">MTBFを予測計算する (QMR)</button>
+            <div id="result-qmr" class="result-box"></div>
+        </div>
+
+        <div class="explanation-section">
+            <h3>このツールの使い方</h3>
+            <ol>
+                <li><strong>1ビットSEU率</strong>: デバイスのデータシートや放射線試験結果から得られる、1秒間に1ビットが反転する確率を入力します。</li>
+                <li><strong>評価レジスタ数</strong>: QMR（5重化）などの保護対象となっているレジスタ（フリップフロップ）の総数を入力します。</li>
+                <li><strong>スクラビング周波数</strong>: メモリのエラーを定期的に修復（スクラビング）するサイクルの周波数を入力します。</li>
+            </ol>
+
+            <h3>計算の仕組み（ポアソン分布の応用）</h3>
+            <p>
+                ここでは、「スクラビング完了までのわずかな時間（1サイクル）」の間に、<strong>同じ場所で3ビット以上のエラーが同時に発生する確率</strong>を「故障」と定義して計算しています（QMRは2ビットのエラーまで多数決で訂正可能）。
+            </p>
+            <div class="formula-box">
+                <strong>1. 1サイクルのエラー平均数 (\(\lambda\))</strong><br>
+                $$ \lambda = \text{SEU率} \times \text{1サイクルの時間} $$
+                <br>
+                <strong>2. 生存確率の計算 (QMR前提)</strong><br>
+                ポアソン分布により、エラーが「0回」「1回」または「2回」で済む確率を求めます。
+                $$ P(Safe_{QMR}) = P(0) + P(1) + P(2) $$
+                $$ = e^{-\lambda} \left( 1 + \lambda + \frac{\lambda^2}{2} \right) $$
+                <br>
+                <strong>3. MTBF (平均故障間隔)</strong><br>
+                $$ MTBF = \frac{\text{1サイクルの時間}}{1 - P(Safe_{QMR})^N} $$
+            </div>
+            <h4>用語解説</h4>
+            <ul>
+                <li><strong>SEU (Single Event Upset)</strong>: 放射線等の影響でメモリの値が反転してしまう現象。</li>
+                <li><strong>QMR (Quintuple Modular Redundancy)</strong>: 同じ回路を5つ用意し、多数決をとる手法。5つ中3つが正常なら動作し、2つのエラーまで訂正可能です。</li>
+                <li><strong>MTBF (Mean Time Between Failures)</strong>: 平均故障間隔。この値が大きいほど、システムは信頼性が高いと言えます。</li>
+            </ul>
+        </div>
+    </div>
+
     <script>
         Decimal.set({ precision: 128 });
 
@@ -322,6 +400,20 @@
             const mode = document.querySelector('input[name="seu_mode"]:checked').value;
             const directGroup = document.getElementById('seu_direct_group');
             const calcGroup = document.getElementById('seu_calc_group');
+            
+            if (mode === 'calc') {
+                directGroup.style.display = 'none';
+                calcGroup.style.display = 'block';
+            } else {
+                directGroup.style.display = 'flex';
+                calcGroup.style.display = 'none';
+            }
+        }
+
+        function toggleSeuModeQmr() {
+            const mode = document.querySelector('input[name="seu_mode_qmr"]:checked').value;
+            const directGroup = document.getElementById('seu_direct_group_qmr');
+            const calcGroup = document.getElementById('seu_calc_group_qmr');
             
             if (mode === 'calc') {
                 directGroup.style.display = 'none';
@@ -398,13 +490,11 @@
                 } else {
                     seuStr = document.getElementById('seuRate').value;
                 }
-                /* --------------------------- */
 
                 const numStr = document.getElementById('numUnits').value;
                 const freqStr = document.getElementById('freq').value;
                 if(!seuStr || !numStr || !freqStr) { alert("全ての項目を入力してください"); return; }
 
-                // --- 計算処理 ---
                 const seu = new Decimal(seuStr);
                 const n_units = new Decimal(numStr);
                 const freq = new Decimal(freqStr);
@@ -432,7 +522,6 @@
                 // No TMR
                 const sys_error_rate = seu.times(n_units);
                 const mtbf_no_tmr_sec = sys_error_rate.isZero() ? new Decimal(Infinity) : new Decimal(1).div(sys_error_rate);
-                // ここで時間の計算を追加
                 const mtbf_no_tmr_hours = mtbf_no_tmr_sec.div(3600);
                 const mtbf_no_tmr_years = mtbf_no_tmr_sec.div(3600).div(24).div(365.25);
 
@@ -440,7 +529,6 @@
                 if (!mtbf_no_tmr_sec.isZero() && !mtbf_sec.isFinite()) ratio = "∞";
                 else if (!mtbf_no_tmr_sec.isZero()) ratio = mtbf_sec.div(mtbf_no_tmr_sec).toSignificantDigits(5).toString();
 
-                // --- 表示処理（途中式を具体的に表示） ---
                 const resBox = document.getElementById('result-mtbf');
                 resBox.style.display = 'block';
 
@@ -499,6 +587,127 @@
                            ≈ ${mtbf_no_tmr_hours.toSignificantDigits(5).toString()} 時間 <br>
                            ≈ ${mtbf_no_tmr_sec.toSignificantDigits(5).toString()} 秒
                         </span>
+                        <hr style="border:0; border-top:1px dashed #1abc9c; margin:10px 0;">
+                        <strong>改善倍率: 約 ${ratio} 倍</strong>
+                    </div>
+                `;
+
+                resBox.innerHTML = html;
+                MathJax.typesetPromise();
+
+            } catch (e) {
+                console.error(e);
+                alert("計算エラーが発生しました。");
+            }
+        }
+
+        function calculateMTBFQMR() {
+            try {
+                const mode = document.querySelector('input[name="seu_mode_qmr"]:checked').value;
+                let seuStr = "";
+                let calcMsg = "";
+
+                if (mode === 'calc') {
+                    const seuCount = document.getElementById('seu_count_qmr').value;
+                    const seuTime = document.getElementById('seu_time_qmr').value;
+                    if (seuCount && seuTime && parseFloat(seuTime) !== 0) {
+                        seuStr = (parseFloat(seuCount) / parseFloat(seuTime)).toString();
+                        calcMsg = `<p style="font-size:0.9em; color:#555; margin-bottom:5px;">(実測値から算出したSEU率: <span class="calc-value">${new Decimal(seuStr).toExponential(4)}</span> errors/bit/sec)</p>`;
+                    }
+                } else {
+                    seuStr = document.getElementById('seuRate_qmr').value;
+                }
+
+                const numStr = document.getElementById('numUnits_qmr').value;
+                const freqStr = document.getElementById('freq_qmr').value;
+                if(!seuStr || !numStr || !freqStr) { alert("全ての項目を入力してください"); return; }
+
+                const seu = new Decimal(seuStr);
+                const n_units = new Decimal(numStr);
+                const freq = new Decimal(freqStr);
+
+                const cycle_time = new Decimal(1).div(freq);
+                const lambda_val = seu.times(cycle_time);
+
+                // P(Safe Single QMR) = P(0) + P(1) + P(2)
+                // = e^-λ + λe^-λ + (λ^2 / 2)e^-λ
+                // = e^-λ (1 + λ + λ^2/2)
+                const exp_neg_lam = Decimal.exp(lambda_val.neg());
+                const term0 = new Decimal(1);
+                const term1 = lambda_val;
+                const term2 = lambda_val.pow(2).div(2);
+                
+                const p_safe_single = exp_neg_lam.times(term0.plus(term1).plus(term2));
+
+                // P(Total Safe) & P(Fail)
+                const p_total_safe = p_safe_single.pow(n_units);
+                const p_fail = new Decimal(1).minus(p_total_safe);
+
+                // MTBF Calculation
+                let mtbf_sec;
+                if (p_fail.isZero()) mtbf_sec = new Decimal(Infinity);
+                else mtbf_sec = cycle_time.div(p_fail);
+
+                const mtbf_hours = mtbf_sec.div(3600);
+                const mtbf_years = mtbf_hours.div(24).div(365.25);
+
+                // No TMR (Reference)
+                const sys_error_rate = seu.times(n_units);
+                const mtbf_no_tmr_sec = sys_error_rate.isZero() ? new Decimal(Infinity) : new Decimal(1).div(sys_error_rate);
+                const mtbf_no_tmr_years = mtbf_no_tmr_sec.div(3600).div(24).div(365.25);
+
+                let ratio = "∞";
+                if (!mtbf_no_tmr_sec.isZero() && !mtbf_sec.isFinite()) ratio = "∞";
+                else if (!mtbf_no_tmr_sec.isZero()) ratio = mtbf_sec.div(mtbf_no_tmr_sec).toSignificantDigits(5).toString();
+
+                const resBox = document.getElementById('result-qmr');
+                resBox.style.display = 'block';
+
+                let html = `
+                    <div class="step">
+                        <div class="step-title">Step 1: パラメータ算出</div>
+                        ${calcMsg}
+                        <ul>
+                            <li>サイクル時間 (\\(T_{cycle} = 1/f\\)): <br><span class="calc-value">${cycle_time.toExponential(4)}</span> sec</li>
+                            <li>\\(\\lambda\\) (1周期の1bitエラー期待値): <br><span class="calc-value">${lambda_val.toExponential(4)}</span></li>
+                        </ul>
+                    </div>
+
+                    <div class="step">
+                        <div class="step-title">Step 2: 確率計算 (QMR 5重化)</div>
+                        
+                        <p><strong>1. 1セットがQMRで保護される確率 \\(P(safe_{bit})\\)</strong><br>
+                        (エラーが0, 1, 2回で済む確率)</p>
+                        $$ P(safe_{bit}) = e^{-\\lambda}\\left(1 + \\lambda + \\frac{\\lambda^2}{2}\\right) $$
+                        <p>計算結果:</p>
+                        <span class="calc-value">${p_safe_single.toFixed(20)}...</span>
+                        
+                        <br><br>
+
+                        <p><strong>2. 全レジスタ(${n_units}個)が同時に保護される確率</strong></p>
+                        $$ P(safe_{total}) = P(safe_{bit})^{${n_units}} $$
+                        
+                        <br>
+
+                        <p><strong>3. 1サイクルあたりのシステム故障確率 \\(P(fail)\\)</strong></p>
+                        <span class="calc-value">${p_fail.toExponential(6)}</span>
+                    </div>
+
+                    <div class="final-answer">
+                        <h3>予測 MTBF (QMR 5重化)</h3>
+                        $$ MTBF = \\frac{T_{cycle}}{P(fail)} $$
+                        <div style="font-size: 1.4em; font-weight:bold; color: #8e44ad; margin:10px 0;">
+                            ${mtbf_years.toSignificantDigits(6).toString()} 年
+                        </div>
+                        <div style="font-size: 0.9em; color:#555; text-align:left; display:inline-block;">
+                            ≈ ${mtbf_hours.toSignificantDigits(6).toString()} 時間 <br>
+                            ≈ ${mtbf_sec.toSignificantDigits(8).toString()} 秒
+                        </div>
+                    </div>
+
+                    <div class="comparison-box">
+                        <strong>【参考】対策なし(No TMR)の場合:</strong><br>
+                        MTBF: ${mtbf_no_tmr_years.toSignificantDigits(5).toString()} 年<br>
                         <hr style="border:0; border-top:1px dashed #1abc9c; margin:10px 0;">
                         <strong>改善倍率: 約 ${ratio} 倍</strong>
                     </div>

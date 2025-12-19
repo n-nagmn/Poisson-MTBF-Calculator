@@ -111,7 +111,7 @@
             font-size: 0.9em;
         }
 
-        /* 説明エリア（復活） */
+        /* 説明エリア*/
         .explanation-section {
             background: #fff; padding: 30px; border-radius: 8px;
             margin-top: 30px; border-top: 4px solid #95a5a6;
@@ -235,7 +235,6 @@
     </div>
 
     <script>
-        // ★変更点1: 計算精度を128桁に設定（全体に適用）
         Decimal.set({ precision: 128 });
 
         function switchTab(tabName) {
@@ -246,7 +245,6 @@
             document.getElementById(tabName).classList.add('active');
         }
 
-        // ★変更点2: 階乗計算をDecimal対応に変更
         function factorialDecimal(n) {
             if (n === 0 || n === 1) return new Decimal(1);
             let res = new Decimal(1);
@@ -254,7 +252,6 @@
             return res;
         }
 
-        // ★変更点3: 基本計算ロジックをMath(標準)からDecimal(高精度)へ差し替え
         function calculatePoissonBasic() {
             const lamInput = document.getElementById('lambda').value;
             const kInput = document.getElementById('k').value;

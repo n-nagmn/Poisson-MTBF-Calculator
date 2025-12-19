@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ポアソン分布 & MTBF予測計算ツール</title>
+    
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/decimal.js/10.4.3/decimal.min.js"></script>
+
+    <style>
+        body {
+            font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+        h1, h2, h3 { color: #2c3e50; border-bottom: 2px solid #ecf0f1; padding-bottom: 10px; }
+        
+        /* タブのスタイル */
+        .tab-container {
+            display: flex;
+            cursor: pointer;
+            margin-bottom: 20px;
+            background: #fff;
+            border-radius: 8px 8px 0 0;
+            overflow: hidden;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .tab {
+            flex: 1;
+            padding: 15px;
+            text-align: center;
+            font-weight: bold;
+            color: #7f8c8d;
+            background: #ecf0f1;
+            transition: 0.3s;
+            border-bottom: 3px solid transparent;
+        }
+        .tab:hover { background-color: #dfe6e9; }
+        .tab.active {
+            color: #2980b9;
+            background: #fff;
+            border-bottom: 3px solid #3498db;
+        }
+
+        /* コンテンツエリア */
+        .content { display: none; }
+        .content.active { display: block; }
+
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        
+        .input-group { margin-bottom: 15px; display: flex; align-items: center; flex-wrap: wrap;}
+        label { width: 220px; font-weight: bold; }
+        input[type="number"], input[type="text"] {
+            padding: 8px; font-size: 16px; width: 180px;
+            border: 1px solid #ccc; border-radius: 4px;
+        }
+        .unit { margin-left: 10px; color: #666; font-size: 0.9em; }
+
+        button {
+            background-color: #3498db; color: white; border: none;
+            padding: 12px 30px; font-size: 16px; border-radius: 4px;
+            cursor: pointer; margin-top: 15px; width: 100%;
+            font-weight: bold; transition: background 0.3s;
+        }
+        button:hover { background-color: #2980b9; }
+
+        /* 結果表示 */
+        .result-box {
+            margin-top: 25px; background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            padding: 20px; border-radius: 4px; display: none;
+        }
+        .step {
+            margin-bottom: 20px; border-bottom: 1px dashed #bdc3c7; padding-bottom: 15px;
+            word-wrap: break-word; /* 長い数字でのレイアウト崩れ防止 */
+        }
+        .step:last-child { border-bottom: none; }
+        .step-title { font-weight: bold; color: #555; margin-bottom: 8px; border-left: 4px solid #3498db; padding-left: 8px;}
+        
+        .final-answer {
+            background-color: #fff; border: 2px solid #3498db;
+            padding: 15px; border-radius: 5px; margin-top: 20px; text-align: center;
+        }
+        .comparison-box {
+            background-color: #e8f6f3; border: 1px solid #1abc9c;
+            padding: 15px; border-radius: 5px; margin-top: 15px;
+        }
+        
+        /* 数字の表示崩れを防ぐためのクラス */
+        .calc-value {
+            font-family: monospace;
+            background: #fff;
+            padding: 2px 5px;
+            border-radius: 3px;
+            border: 1px solid #ddd;
+            display: inline-block;
+            margin: 2px 0;
+            font-size: 0.9em;
+        }
+
+        /* 説明エリア（復活） */
+        .explanation-section {
+            background: #fff; padding: 30px; border-radius: 8px;
+            margin-top: 30px; border-top: 4px solid #95a5a6;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .formula-box {
+            background: #fff8e1; padding: 15px;
+            border-left: 5px solid #f1c40f; margin: 15px 0;
+            overflow-x: auto;
+        }
+        ol li { margin-bottom: 8px; }
+        ul li { margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+
+    <h1>ポアソン分布計算</h1>
+
+    <div class="tab-container">
+        <div class="tab active" onclick="switchTab('basic')">① 基本のポアソン分布</div>
+        <div class="tab" onclick="switchTab('mtbf')">② MTBF予測 (耐放射線/TMR)</div>
+    </div>
+
+    <div id="basic" class="content active">
+        <div class="container">
+            <h2>基本計算</h2>
+            <div class="input-group">
+                <label for="lambda">平均発生回数 (\(\lambda\)):</label>
+                <input type="number" id="lambda" step="0.1" placeholder="例: 3">
+                <span class="unit">(回/期間)</span>
+            </div>
+            <div class="input-group">
+                <label for="k">起きる回数 (\(k\)):</label>
+                <input type="number" id="k" step="1" placeholder="例: 2">
+                <span class="unit">(回)</span>
+            </div>
+            <button onclick="calculatePoissonBasic()">確率を計算する</button>
+            <div id="result-basic" class="result-box"></div>
+        </div>
+        
+        <div class="explanation-section">
+            <h3>このツールの使い方</h3>
+            <ol>
+                <li><strong>平均発生回数 (\(\lambda\))</strong> を入力します（例: 過去のデータから1時間に平均3人客が来るなら「3」）。</li>
+                <li><strong>起きる回数 (\(k\))</strong> を入力します（例: 今日ちょうど2人来る確率を知りたいなら「2」）。</li>
+                <li>「計算する」ボタンを押すと、途中式とともに確率(%)が表示されます。</li>
+            </ol>
+
+            <h3>ポアソン分布とは？</h3>
+            <p>
+                「滅多に起こらないけれど、長い目で見ると一定の確率で起こるランダムな事象」の回数を予測する確率分布です。
+            </p>
+            
+            <div class="formula-box">
+                <strong>【公式】</strong>
+                $$ P(X=k) = \frac{e^{-\lambda} \lambda^k}{k!} $$
+            </div>
+
+            <h4>よく使われる具体例</h4>
+            <ul>
+                <li>コールセンターに1時間でかかってくる電話の本数</li>
+                <li>1年間に発生する交通事故の件数</li>
+                <li>パン屋で1日に売れるアンパンの個数</li>
+                <li>Webサーバーへの1分間のアクセス数</li>
+            </ul>
+        </div>
+    </div>
+
+    <div id="mtbf" class="content">
+        <div class="container">
+            <h2>MTBF予測 (スクラビング/TMR)</h2>
+            <div class="input-group">
+                <label for="seuRate">1bitあたりの平均ソフトエラー観測数（1秒）:</label>
+                <input type="text" id="seuRate" placeholder="例: 0.0012">
+                <span class="unit">[errors/bit/sec]</span>
+            </div>
+            <div class="input-group">
+                <label for="numUnits">評価レジスタ数 (N):</label>
+                <input type="number" id="numUnits" placeholder="例: 415">
+                <span class="unit">[bits]</span>
+            </div>
+            <div class="input-group">
+                <label for="freq">スクラビング周波数:</label>
+                <input type="text" id="freq" placeholder="例: 20000000">
+                <span class="unit">[Hz]</span>
+            </div>
+            <button onclick="calculateMTBF()">MTBFを予測計算する</button>
+            <div id="result-mtbf" class="result-box"></div>
+        </div>
+
+        <div class="explanation-section">
+            <h3>このツールの使い方</h3>
+            <ol>
+                <li><strong>1ビットSEU率</strong>: デバイスのデータシートや放射線試験結果から得られる、1秒間に1ビットが反転する確率を入力します。</li>
+                <li><strong>評価レジスタ数</strong>: TMR（三重化）などの保護対象となっているレジスタ（フリップフロップ）の総数を入力します。</li>
+                <li><strong>スクラビング周波数</strong>: メモリのエラーを定期的に修復（スクラビング）するサイクルの周波数を入力します（例: 20MHzなら20000000）。</li>
+            </ol>
+
+            <h3>計算の仕組み（ポアソン分布の応用）</h3>
+            <p>
+                ここでは、「スクラビング完了までのわずかな時間（1サイクル）」の間に、<strong>同じ場所で2ビット以上のエラーが同時に発生する確率</strong>を「故障」と定義して計算しています。
+            </p>
+            <div class="formula-box">
+                <strong>1. 1サイクルのエラー平均数 (\(\lambda\))</strong><br>
+                $$ \lambda = \text{SEU率} \times \text{1サイクルの時間} $$
+                <br>
+                <strong>2. 生存確率の計算 (TMR前提)</strong><br>
+                ポアソン分布により、エラーが「0回」または「1回」で済む確率を求めます（TMRは1bitエラーまで訂正可能なため）。
+                $$ P(Safe) = P(0回) + P(1回) = e^{-\lambda} + \lambda e^{-\lambda} $$
+                <br>
+                <strong>3. MTBF (平均故障間隔)</strong><br>
+                $$ MTBF = \frac{\text{1サイクルの時間}}{1 - P(Safe)^N} $$
+            </div>
+            <h4>用語解説</h4>
+            <ul>
+                <li><strong>SEU (Single Event Upset)</strong>: 放射線等の影響でメモリの値が反転してしまう現象。</li>
+                <li><strong>TMR (Triple Modular Redundancy)</strong>: 同じ回路を3つ用意し、多数決をとることで信頼性を高める手法。</li>
+                <li><strong>MTBF (Mean Time Between Failures)</strong>: 平均故障間隔。この値が大きいほど、システムは信頼性が高いと言えます。</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // ★変更点1: 計算精度を128桁に設定（全体に適用）
+        Decimal.set({ precision: 128 });
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+            const targetTab = Array.from(document.querySelectorAll('.tab')).find(t => t.getAttribute('onclick').includes(tabName));
+            if(targetTab) targetTab.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+        }
+
+        // ★変更点2: 階乗計算をDecimal対応に変更
+        function factorialDecimal(n) {
+            if (n === 0 || n === 1) return new Decimal(1);
+            let res = new Decimal(1);
+            for(let i=2; i<=n; i++) res = res.times(i);
+            return res;
+        }
+
+        // ★変更点3: 基本計算ロジックをMath(標準)からDecimal(高精度)へ差し替え
+        function calculatePoissonBasic() {
+            const lamInput = document.getElementById('lambda').value;
+            const kInput = document.getElementById('k').value;
+            const resBox = document.getElementById('result-basic');
+            if (lamInput === "" || kInput === "") { alert("数値を入力してください"); return; }
+            
+            // Decimal型に変換して計算開始
+            const lam = new Decimal(lamInput);
+            const k = parseInt(kInput); // kは整数のままループに使用
+            
+            // P(X=k) = (e^-λ * λ^k) / k!
+            const expVal = Decimal.exp(lam.neg());
+            const powVal = lam.pow(k);
+            const factVal = factorialDecimal(k);
+            
+            const numerator = expVal.times(powVal);
+            const prob = numerator.div(factVal);
+
+            resBox.style.display = 'block';
+            resBox.innerHTML = `
+                <div class="step"><div class="step-title">Step 1: 値の代入</div>$$ P(X=${k}) = \\frac{e^{-${lam}} \\times ${lam}^{${k}}}{${k}!} $$</div>
+                <div class="step"><div class="step-title">Step 2: 結果 (高精度計算)</div>確率: <strong>${prob.times(100).toSignificantDigits(6).toString()} %</strong></div>
+            `;
+            MathJax.typesetPromise();
+        }
+
+        // MTBF計算（こちらは元からDecimal対応のため変更なし）
+        function calculateMTBF() {
+            try {
+                const seuStr = document.getElementById('seuRate').value;
+                const numStr = document.getElementById('numUnits').value;
+                const freqStr = document.getElementById('freq').value;
+                if(!seuStr || !numStr || !freqStr) { alert("全ての項目を入力してください"); return; }
+
+                // --- 計算処理 ---
+                const seu = new Decimal(seuStr);
+                const n_units = new Decimal(numStr);
+                const freq = new Decimal(freqStr);
+
+                const cycle_time = new Decimal(1).div(freq);
+                const lambda_val = seu.times(cycle_time);
+
+                // P(Safe Single)
+                const exp_neg_lam = Decimal.exp(lambda_val.neg());
+                const term_linear = lambda_val.plus(1);
+                const p_safe_single = exp_neg_lam.times(term_linear);
+
+                // P(Total Safe) & P(Fail)
+                const p_total_safe = p_safe_single.pow(n_units);
+                const p_fail = new Decimal(1).minus(p_total_safe);
+
+                // MTBF Calculation
+                let mtbf_sec;
+                if (p_fail.isZero()) mtbf_sec = new Decimal(Infinity);
+                else mtbf_sec = cycle_time.div(p_fail);
+
+                const mtbf_hours = mtbf_sec.div(3600);
+                const mtbf_years = mtbf_hours.div(24).div(365.25);
+
+                // No TMR
+                const sys_error_rate = seu.times(n_units);
+                const mtbf_no_tmr_sec = sys_error_rate.isZero() ? new Decimal(Infinity) : new Decimal(1).div(sys_error_rate);
+                // ここで時間の計算を追加
+                const mtbf_no_tmr_hours = mtbf_no_tmr_sec.div(3600);
+                const mtbf_no_tmr_years = mtbf_no_tmr_sec.div(3600).div(24).div(365.25);
+
+                let ratio = "∞";
+                if (!mtbf_no_tmr_sec.isZero() && !mtbf_sec.isFinite()) ratio = "∞";
+                else if (!mtbf_no_tmr_sec.isZero()) ratio = mtbf_sec.div(mtbf_no_tmr_sec).toSignificantDigits(5).toString();
+
+                // --- 表示処理（途中式を具体的に表示） ---
+                const resBox = document.getElementById('result-mtbf');
+                resBox.style.display = 'block';
+
+                let html = `
+                    <div class="step">
+                        <div class="step-title">Step 1: パラメータ算出</div>
+                        <ul>
+                            <li>サイクル時間 (\\(T_{cycle} = 1/f\\)): <br><span class="calc-value">${cycle_time.toExponential(4)}</span> sec</li>
+                            <li>\\(\\lambda\\) (1周期の1bitエラー期待値 = \\(SEU \\times T_{cycle}\\)): <br><span class="calc-value">${lambda_val.toExponential(4)}</span></li>
+                        </ul>
+                    </div>
+
+                    <div class="step">
+                        <div class="step-title">Step 2: 確率計算 (途中計算)</div>
+                        
+                        <p><strong>1. 1ビットがTMRで保護される確率 \\(P(safe_{bit})\\)</strong><br>
+                        (0回または1回エラーで済む確率)</p>
+                        $$ P(safe_{bit}) = e^{-\\lambda}(1+\\lambda) $$
+                        <p>値を代入して計算:</p>
+                        $$ e^{-${lambda_val.toExponential(2)}} \\times (1 + ${lambda_val.toExponential(2)}) $$
+                        <p>計算結果:</p>
+                        <span class="calc-value">${p_safe_single.toFixed(20)}...</span>
+                        
+                        <br><br>
+
+                        <p><strong>2. 全レジスタ(${n_units}個)が同時に保護される確率 \\(P(safe_{total})\\)</strong></p>
+                        $$ P(safe_{total}) = P(safe_{bit})^{${n_units}} $$
+                        <p>計算結果 (1に極めて近い):</p>
+                        <span class="calc-value">${p_total_safe.toFixed(20)}...</span>
+
+                        <br><br>
+
+                        <p><strong>3. 1サイクルあたりのシステム故障確率 \\(P(fail)\\)</strong><br>
+                        (1 - 全体がセーフな確率)</p>
+                        <span class="calc-value">${p_fail.toExponential(6)}</span>
+                    </div>
+
+                    <div class="final-answer">
+                        <h3>予測 MTBF (TMR/Scrubbingあり)</h3>
+                        $$ MTBF = \\frac{T_{cycle}}{P(fail)} $$
+                        <div style="font-size: 1.4em; font-weight:bold; color: #2c3e50; margin:10px 0;">
+                            ${mtbf_years.toSignificantDigits(6).toString()} 年
+                        </div>
+                        <div style="font-size: 0.9em; color:#555; text-align:left; display:inline-block;">
+                            ≈ ${mtbf_hours.toSignificantDigits(6).toString()} 時間 <br>
+                            ≈ ${mtbf_sec.toSignificantDigits(8).toString()} 秒
+                        </div>
+                    </div>
+
+                    <div class="comparison-box">
+                        <strong>【参考】対策なし(No TMR)の場合:</strong><br>
+                        $$ MTBF_{raw} = \\frac{1}{SEU \\times N} $$
+                        MTBF: ${mtbf_no_tmr_years.toSignificantDigits(5).toString()} 年<br>
+                        <span style="font-size: 0.9em; color:#555;">
+                           ≈ ${mtbf_no_tmr_hours.toSignificantDigits(5).toString()} 時間 <br>
+                           ≈ ${mtbf_no_tmr_sec.toSignificantDigits(5).toString()} 秒
+                        </span>
+                        <hr style="border:0; border-top:1px dashed #1abc9c; margin:10px 0;">
+                        <strong>改善倍率: 約 ${ratio} 倍</strong>
+                    </div>
+                `;
+
+                resBox.innerHTML = html;
+                MathJax.typesetPromise();
+
+            } catch (e) {
+                console.error(e);
+                alert("計算エラーが発生しました。");
+            }
+        }
+    </script>
+</body>
+</html>

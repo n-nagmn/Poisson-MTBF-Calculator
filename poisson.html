@@ -124,6 +124,27 @@
         }
         ol li { margin-bottom: 8px; }
         ul li { margin-bottom: 5px; }
+
+        /* --- 追加スタイル: 切替用 --- */
+        .mode-selection {
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #edf2f7;
+            border-radius: 4px;
+        }
+        .mode-selection label {
+            width: auto;
+            margin-right: 20px;
+            font-weight: normal;
+            cursor: pointer;
+        }
+        .calc-inputs {
+            display: none; /* 初期状態は非表示 */
+            border-left: 3px solid #3498db;
+            padding-left: 15px;
+            margin-bottom: 15px;
+            background: #fdfdfd;
+        }
     </style>
 </head>
 <body>
@@ -138,11 +159,33 @@
     <div id="basic" class="content active">
         <div class="container">
             <h2>基本計算</h2>
-            <div class="input-group">
+
+            <div class="mode-selection">
+                <strong>入力方式:</strong><br>
+                <label><input type="radio" name="lambda_mode" value="direct" checked onchange="toggleLambdaMode()"> 平均値を直接入力</label>
+                <label><input type="radio" name="lambda_mode" value="calc" onchange="toggleLambdaMode()"> 観測データから算出</label>
+            </div>
+
+            <div id="lambda_calc_group" class="calc-inputs">
+                <div class="input-group">
+                    <label for="obs_events">観測された総発生数:</label>
+                    <input type="number" id="obs_events" placeholder="例: 30">
+                    <span class="unit">(回)</span>
+                </div>
+                <div class="input-group">
+                    <label for="obs_time">観測期間 (総単位時間):</label>
+                    <input type="number" id="obs_time" placeholder="例: 10">
+                    <span class="unit">(時間, 日など)</span>
+                </div>
+                <small style="color:#666;">※ 平均発生回数 = 総発生数 ÷ 観測期間 で計算します。</small>
+            </div>
+
+            <div class="input-group" id="lambda_direct_group">
                 <label for="lambda">平均発生回数 (\(\lambda\)):</label>
                 <input type="number" id="lambda" step="0.1" placeholder="例: 3">
                 <span class="unit">(回/期間)</span>
             </div>
+            
             <div class="input-group">
                 <label for="k">起きる回数 (\(k\)):</label>
                 <input type="number" id="k" step="1" placeholder="例: 2">
@@ -183,11 +226,33 @@
     <div id="mtbf" class="content">
         <div class="container">
             <h2>MTBF予測 (スクラビング/TMR)</h2>
-            <div class="input-group">
+
+            <div class="mode-selection">
+                <strong>SEU率入力方式:</strong><br>
+                <label><input type="radio" name="seu_mode" value="direct" checked onchange="toggleSeuMode()"> SEU率を直接入力</label>
+                <label><input type="radio" name="seu_mode" value="calc" onchange="toggleSeuMode()"> 実測値から算出</label>
+            </div>
+
+            <div id="seu_calc_group" class="calc-inputs">
+                <div class="input-group">
+                    <label for="seu_count">SEU発生総数 (カウント):</label>
+                    <input type="number" id="seu_count" placeholder="例: 50">
+                    <span class="unit">[errors]</span>
+                </div>
+                <div class="input-group">
+                    <label for="seu_time">総試験時間 (秒):</label>
+                    <input type="number" id="seu_time" placeholder="例: 3600">
+                    <span class="unit">[sec]</span>
+                </div>
+                <small style="color:#666;">※ SEU率 = 発生総数 ÷ 総試験時間 で計算します。</small>
+            </div>
+
+            <div class="input-group" id="seu_direct_group">
                 <label for="seuRate">1bitあたりの平均ソフトエラー観測数（1秒）:</label>
                 <input type="text" id="seuRate" placeholder="例: 0.0012">
                 <span class="unit">[errors/bit/sec]</span>
             </div>
+
             <div class="input-group">
                 <label for="numUnits">評価レジスタ数 (N):</label>
                 <input type="number" id="numUnits" placeholder="例: 415">
@@ -245,6 +310,36 @@
             document.getElementById(tabName).classList.add('active');
         }
 
+        /* --- 追加: モード切替関数 --- */
+        function toggleLambdaMode() {
+            const mode = document.querySelector('input[name="lambda_mode"]:checked').value;
+            const directGroup = document.getElementById('lambda_direct_group');
+            const calcGroup = document.getElementById('lambda_calc_group');
+            
+            if (mode === 'calc') {
+                directGroup.style.display = 'none';
+                calcGroup.style.display = 'block';
+            } else {
+                directGroup.style.display = 'flex';
+                calcGroup.style.display = 'none';
+            }
+        }
+
+        function toggleSeuMode() {
+            const mode = document.querySelector('input[name="seu_mode"]:checked').value;
+            const directGroup = document.getElementById('seu_direct_group');
+            const calcGroup = document.getElementById('seu_calc_group');
+            
+            if (mode === 'calc') {
+                directGroup.style.display = 'none';
+                calcGroup.style.display = 'block';
+            } else {
+                directGroup.style.display = 'flex';
+                calcGroup.style.display = 'none';
+            }
+        }
+        /* --------------------------- */
+
         function factorialDecimal(n) {
             if (n === 0 || n === 1) return new Decimal(1);
             let res = new Decimal(1);
@@ -253,7 +348,24 @@
         }
 
         function calculatePoissonBasic() {
-            const lamInput = document.getElementById('lambda').value;
+            /* 修正: モード判定を追加 */
+            const mode = document.querySelector('input[name="lambda_mode"]:checked').value;
+            let lamInput = "";
+            let calcMsg = "";
+
+            if (mode === 'calc') {
+                const obsEvents = document.getElementById('obs_events').value;
+                const obsTime = document.getElementById('obs_time').value;
+                if (obsEvents !== "" && obsTime !== "" && parseFloat(obsTime) !== 0) {
+                    // 簡易計算してセット
+                    lamInput = (parseFloat(obsEvents) / parseFloat(obsTime)).toString();
+                    calcMsg = `<p style="font-size:0.9em; color:#555;">(算出された平均発生回数 \(\lambda = ${new Decimal(lamInput).toSignificantDigits(6)}\))</p>`;
+                }
+            } else {
+                lamInput = document.getElementById('lambda').value;
+            }
+            /* --------------------------- */
+
             const kInput = document.getElementById('k').value;
             const resBox = document.getElementById('result-basic');
             if (lamInput === "" || kInput === "") { alert("数値を入力してください"); return; }
@@ -272,16 +384,34 @@
 
             resBox.style.display = 'block';
             resBox.innerHTML = `
-                <div class="step"><div class="step-title">Step 1: 値の代入</div>$$ P(X=${k}) = \\frac{e^{-${lam}} \\times ${lam}^{${k}}}{${k}!} $$</div>
+                <div class="step"><div class="step-title">Step 1: 値の代入</div>
+                ${calcMsg}
+                $$ P(X=${k}) = \\frac{e^{-${lam.toSignificantDigits(6)}} \\times ${lam.toSignificantDigits(6)}^{${k}}}{${k}!} $$</div>
                 <div class="step"><div class="step-title">Step 2: 結果 (高精度計算)</div>確率: <strong>${prob.times(100).toSignificantDigits(6).toString()} %</strong></div>
             `;
             MathJax.typesetPromise();
         }
 
-        // MTBF計算（こちらは元からDecimal対応のため変更なし）
+        // MTBF計算
         function calculateMTBF() {
             try {
-                const seuStr = document.getElementById('seuRate').value;
+                /* 修正: モード判定を追加 */
+                const mode = document.querySelector('input[name="seu_mode"]:checked').value;
+                let seuStr = "";
+                let calcMsg = "";
+
+                if (mode === 'calc') {
+                    const seuCount = document.getElementById('seu_count').value;
+                    const seuTime = document.getElementById('seu_time').value;
+                    if (seuCount && seuTime && parseFloat(seuTime) !== 0) {
+                        seuStr = (parseFloat(seuCount) / parseFloat(seuTime)).toString();
+                        calcMsg = `<p style="font-size:0.9em; color:#555; margin-bottom:5px;">(実測値から算出したSEU率: <span class="calc-value">${new Decimal(seuStr).toExponential(4)}</span> errors/bit/sec)</p>`;
+                    }
+                } else {
+                    seuStr = document.getElementById('seuRate').value;
+                }
+                /* --------------------------- */
+
                 const numStr = document.getElementById('numUnits').value;
                 const freqStr = document.getElementById('freq').value;
                 if(!seuStr || !numStr || !freqStr) { alert("全ての項目を入力してください"); return; }
@@ -329,6 +459,7 @@
                 let html = `
                     <div class="step">
                         <div class="step-title">Step 1: パラメータ算出</div>
+                        ${calcMsg}
                         <ul>
                             <li>サイクル時間 (\\(T_{cycle} = 1/f\\)): <br><span class="calc-value">${cycle_time.toExponential(4)}</span> sec</li>
                             <li>\\(\\lambda\\) (1周期の1bitエラー期待値 = \\(SEU \\times T_{cycle}\\)): <br><span class="calc-value">${lambda_val.toExponential(4)}</span></li>

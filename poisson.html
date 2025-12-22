@@ -479,6 +479,7 @@
         function calculateMTBF() {
             try {
                 const mode = document.querySelector('input[name="seu_mode"]:checked').value;
+                const numStr = document.getElementById('numUnits').value;
                 let seuStr = "";
                 let calcMsg = "";
 
@@ -486,14 +487,13 @@
                     const seuCount = document.getElementById('seu_count').value;
                     const seuTime = document.getElementById('seu_time').value;
                     if (seuCount && seuTime && parseFloat(seuTime) !== 0) {
-                        seuStr = (parseFloat(seuCount) / parseFloat(seuTime)).toString();
-                        calcMsg = `<p style="font-size:0.9em; color:#555; margin-bottom:5px;">(実測値から算出したSEU率: <span class="calc-value">${new Decimal(seuStr).toExponential(4)}</span> errors/bit/sec)</p>`;
+                        seuStr = (parseFloat(seuCount) / (parseFloat(seuTime) * parseFloat(numStr))).toString();
+                        calcMsg = `<p style="font-size:0.9em; color:#555; margin-bottom:5px;">(実測値から算出した1ビットあたりのSEU率: <span class="calc-value">${new Decimal(seuStr).toExponential(4)}</span> errors/bit/sec)</p>`;
                     }
                 } else {
                     seuStr = document.getElementById('seuRate').value;
                 }
 
-                const numStr = document.getElementById('numUnits').value;
                 const freqStr = document.getElementById('freq').value;
                 if(!seuStr || !numStr || !freqStr) { alert("全ての項目を入力してください"); return; }
 
@@ -606,6 +606,7 @@
         function calculateMTBFQMR() {
             try {
                 const mode = document.querySelector('input[name="seu_mode_qmr"]:checked').value;
+                const numStr = document.getElementById('numUnits_qmr').value;
                 let seuStr = "";
                 let calcMsg = "";
 
@@ -613,14 +614,13 @@
                     const seuCount = document.getElementById('seu_count_qmr').value;
                     const seuTime = document.getElementById('seu_time_qmr').value;
                     if (seuCount && seuTime && parseFloat(seuTime) !== 0) {
-                        seuStr = (parseFloat(seuCount) / parseFloat(seuTime)).toString();
-                        calcMsg = `<p style="font-size:0.9em; color:#555; margin-bottom:5px;">(実測値から算出したSEU率: <span class="calc-value">${new Decimal(seuStr).toExponential(4)}</span> errors/bit/sec)</p>`;
+                        seuStr = (parseFloat(seuCount) / (parseFloat(seuTime) * parseFloat(numStr))).toString();
+                        calcMsg = `<p style="font-size:0.9em; color:#555; margin-bottom:5px;">(実測値から算出した1ビットあたりのSEU率: <span class="calc-value">${new Decimal(seuStr).toExponential(4)}</span> errors/bit/sec)</p>`;
                     }
                 } else {
                     seuStr = document.getElementById('seuRate_qmr').value;
                 }
 
-                const numStr = document.getElementById('numUnits_qmr').value;
                 const freqStr = document.getElementById('freq_qmr').value;
                 if(!seuStr || !numStr || !freqStr) { alert("全ての項目を入力してください"); return; }
 

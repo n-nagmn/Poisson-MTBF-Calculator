@@ -275,7 +275,7 @@
                 ここでは、「スクラビング完了までのわずかな時間（1サイクル）」の間に、<strong>同じ場所で2ビット以上のエラーが同時に発生する確率</strong>を「故障」と定義して計算しています。
             </p>
             <div class="formula-box">
-                <strong>1. 1サイクルのエラー平均数 (\(\lambda\))</strong><br>
+                <strong>1. 1bitあたりの平均ソフトエラー観測数（1秒） (\(\lambda\))</strong><br>
                 $$ \lambda = \text{SEU率} \times \text{1サイクルの時間} $$
                 <br>
                 <strong>2. 生存確率の計算 (TMR前提)</strong><br>
@@ -283,7 +283,8 @@
                 $$ P(Safe) = P(0回) + P(1回) = e^{-\lambda} + \lambda e^{-\lambda} $$
                 <br>
                 <strong>3. MTBF (平均故障間隔)</strong><br>
-                $$ MTBF = \frac{\text{1サイクルの時間}}{1 - P(Safe)^N} $$
+                システムが1サイクル内で故障しない確率を全レジスタ数分乗算し、その確率の逆数を求めることで、平均故障間隔を算出します。
+                $$ MTBF = \frac{\text{1サイクルの時間}}{1 - P(Safe_{TMR})^N} $$
             </div>
             <h4>用語解説</h4>
             <ul>
@@ -351,7 +352,7 @@
                 ここでは、「スクラビング完了までのわずかな時間（1サイクル）」の間に、<strong>同じ場所で3ビット以上のエラーが同時に発生する確率</strong>を「故障」と定義して計算しています（QMRは2ビットのエラーまで多数決で訂正可能）。
             </p>
             <div class="formula-box">
-                <strong>1. 1サイクルのエラー平均数 (\(\lambda\))</strong><br>
+                <strong>1. 1bitあたりの1サイクルのエラー平均数 (\(\lambda\))</strong><br>
                 $$ \lambda = \text{SEU率} \times \text{1サイクルの時間} $$
                 <br>
                 <strong>2. 生存確率の計算 (QMR前提)</strong><br>
@@ -360,6 +361,7 @@
                 $$ = e^{-\lambda} \left( 1 + \lambda + \frac{\lambda^2}{2} \right) $$
                 <br>
                 <strong>3. MTBF (平均故障間隔)</strong><br>
+                システムが1サイクル内で故障しない確率を全レジスタ数分乗算し、その確率の逆数を求めることで、平均故障間隔を算出します。
                 $$ MTBF = \frac{\text{1サイクルの時間}}{1 - P(Safe_{QMR})^N} $$
             </div>
             <h4>用語解説</h4>

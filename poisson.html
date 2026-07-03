@@ -265,30 +265,60 @@
         <div class="explanation-section">
             <h3>このツールの使い方</h3>
             <ol>
-                <li><strong>1ビットSEU率</strong>: デバイスのデータシートや放射線試験結果から得られる、1秒間に1ビットが反転する確率を入力します。</li>
-                <li><strong>評価レジスタ数</strong>: TMR（三重化）などの保護対象となっているレジスタ（フリップフロップ）の総数を入力します。</li>
-                <li><strong>スクラビング周波数</strong>: メモリのエラーを定期的に修復（スクラビング）するサイクルの周波数を入力します（例: 20MHzなら20000000）。</li>
+                <li><strong>SEU率の入力（2通り）</strong>:
+                    <ul>
+                        <li><strong>直接入力</strong>: データシートや放射線照射試験の解析結果から得られた、1ビット・1秒あたりのソフトエラー率 [errors/bit/sec] をそのまま入力します。</li>
+                        <li><strong>実測値から算出</strong>: 照射試験で観測した「SEU発生総数」と「総試験時間」を入力すると、
+                        $$ \text{SEU率} = \frac{\text{発生総数}}{\text{評価レジスタ数} N \times \text{総試験時間}} $$
+                        として自動計算されます（評価対象の全ビットで観測した総数を、ビット数と時間で正規化します）。</li>
+                    </ul>
+                </li>
+                <li><strong>評価レジスタ数 (N)</strong>: <strong>TMR適用後の物理フリップフロップ総数</strong>を入力します。論理ビット数の3倍です（例: 論理135ビットをTMR化した設計なら N = 405）。照射試験でエラーを数えた母数と同じ値を使ってください。</li>
+                <li><strong>スクラビング周波数</strong>: エラーを定期的に上書き修復（スクラビング）するサイクルの周波数 [Hz] を入力します（例: 1 kHzなら1000、20 MHzなら20000000）。1サイクルの時間 \(T_{cycle} = 1/f\) がTMRの「守り切るべき時間窓」になります。</li>
             </ol>
+
+            <h4>入力例（<a href="https://github.com/n-nagmn/JTAG" target="_blank">耐放射線JTAGインタフェース</a>の$^{241}$Am照射試験）</h4>
+            <ul>
+                <li>実測値から算出: SEU発生総数 = 3、総試験時間 = 1642.03 秒</li>
+                <li>評価レジスタ数 N = 405、スクラビング周波数 = 1000 Hz</li>
+                <li>→ SEU率 4.5111×10<sup>-6</sup> errors/bit/sec、MTBF（TMRあり）約7,700年、対策なし約27分</li>
+            </ul>
+            <p style="font-size:0.9em; color:#555;">
+                ※ 実測データの集計には、リポジトリ同梱の <strong>照射試験_v4.xlsx</strong> が使えます。
+                各試験のエラー数と時間を入力すると、H2セルにSEU率 [errors/bit/sec] が算出されるので、その値を「直接入力」欄に貼り付けてもOKです。
+            </p>
 
             <h3>計算の仕組み（ポアソン分布の応用）</h3>
             <p>
-                ここでは、「スクラビング完了までのわずかな時間（1サイクル）」の間に、<strong>同じ場所で2ビット以上のエラーが同時に発生する確率</strong>を「故障」と定義して計算しています。
+                放射線によるエラー発生は、時間的にランダムで互いに独立な稀な事象なので、ポアソン分布でモデル化できます。
+                TMRは1ビットのエラーなら多数決で訂正でき、スクラビングによって周期的に正常値へ復旧されるため、
+                システムが故障するのは「<strong>スクラビングが間に合わない1サイクルの間に、同じ場所へ2ビット以上のエラーが重なった場合</strong>」だけです。
+                この確率を「故障」と定義して計算しています。
             </p>
             <div class="formula-box">
                 <strong>1. 1サイクルのエラー平均数 (\(\lambda\))</strong><br>
-                $$ \lambda = \text{SEU率} \times \text{1サイクルの時間} $$
+                1ビットが1サイクル中にエラーを起こす平均回数です。スクラビングが速いほど \(\lambda\) は小さくなります。
+                $$ \lambda = \text{SEU率} \times T_{cycle} $$
                 <br>
                 <strong>2. 生存確率の計算 (TMR前提)</strong><br>
                 ポアソン分布により、エラーが「0回」または「1回」で済む確率を求めます（TMRは1bitエラーまで訂正可能なため）。
                 $$ P(Safe) = P(0回) + P(1回) = e^{-\lambda} + \lambda e^{-\lambda} $$
-                <br>
+                \(\lambda \ll 1\) のとき \(1 - P(Safe) \approx \lambda^2/2\) となり、故障確率が \(\lambda\) の<strong>2乗オーダー</strong>まで抑えられるのがTMR+スクラビングの効果です（対策なしは \(\lambda\) の1乗オーダー）。
+                <br><br>
                 <strong>3. MTBF (平均故障間隔)</strong><br>
-                $$ MTBF = \frac{\text{1サイクルの時間}}{1 - P(Safe)^N} $$
+                N個のレジスタ全てが生存する確率から、1サイクルあたりのシステム故障確率を求め、サイクル時間を割ります。
+                $$ MTBF = \frac{T_{cycle}}{1 - P(Safe)^N} $$
+                <br>
+                <strong>4. 対策なし（No TMR）との比較</strong><br>
+                冗長化しない設計では、レジスタ数は論理ビット数（\(N/3\)）で、1ビットでもエラーが起きたら即故障です。
+                $$ MTBF_{raw} = \frac{1}{\text{SEU率} \times (N/3)} $$
+                物理ビット数 \(N\) のままで比較すると対策なし側の故障率を3倍過大評価してしまうため、必ず論理ビット数で比較します。
             </div>
             <h4>用語解説</h4>
             <ul>
-                <li><strong>SEU (Single Event Upset)</strong>: 放射線等の影響でメモリの値が反転してしまう現象。</li>
-                <li><strong>TMR (Triple Modular Redundancy)</strong>: 同じ回路を3つ用意し、多数決をとることで信頼性を高める手法。</li>
+                <li><strong>SEU (Single Event Upset)</strong>: 放射線等の影響でフリップフロップの保持値が反転してしまう一時的なエラー（ソフトエラー）。素子の破壊を伴わず、上書きすれば復旧します。</li>
+                <li><strong>TMR (Triple Modular Redundancy)</strong>: 同じ回路を3つ用意し、多数決をとることで信頼性を高める手法。3つのうち1つのエラーまで訂正できます。</li>
+                <li><strong>スクラビング (Scrubbing)</strong>: 蓄積したエラーが2ビットに育つ前に、周期的にデータを上書き修復する処理。TMRと組み合わせることでMTBFが飛躍的に伸びます。</li>
                 <li><strong>MTBF (Mean Time Between Failures)</strong>: 平均故障間隔。この値が大きいほど、システムは信頼性が高いと言えます。</li>
             </ul>
         </div>
@@ -341,18 +371,28 @@
         <div class="explanation-section">
             <h3>このツールの使い方</h3>
             <ol>
-                <li><strong>1ビットSEU率</strong>: デバイスのデータシートや放射線試験結果から得られる、1秒間に1ビットが反転する確率を入力します。</li>
-                <li><strong>評価レジスタ数</strong>: QMR（五重化）などの保護対象となっているレジスタ（フリップフロップ）の総数を入力します。</li>
-                <li><strong>スクラビング周波数</strong>: メモリのエラーを定期的に修復（スクラビング）するサイクルの周波数を入力します。</li>
+                <li><strong>SEU率の入力（2通り）</strong>:
+                    <ul>
+                        <li><strong>直接入力</strong>: 1ビット・1秒あたりのソフトエラー率 [errors/bit/sec] をそのまま入力します。</li>
+                        <li><strong>実測値から算出</strong>: 「SEU発生総数」と「総試験時間」を入力すると、
+                        $$ \text{SEU率} = \frac{\text{発生総数}}{\text{評価レジスタ数} N \times \text{総試験時間}} $$
+                        として自動計算されます。</li>
+                    </ul>
+                </li>
+                <li><strong>評価レジスタ数 (N)</strong>: <strong>QMR適用後の物理フリップフロップ総数</strong>を入力します。論理ビット数の5倍です（例: 論理81ビットをQMR化した設計なら N = 405）。照射試験でエラーを数えた母数と同じ値を使ってください。</li>
+                <li><strong>スクラビング周波数</strong>: エラーを定期的に上書き修復するサイクルの周波数 [Hz] を入力します。1サイクルの時間 \(T_{cycle} = 1/f\) がQMRの「守り切るべき時間窓」になります。</li>
             </ol>
 
             <h3>計算の仕組み（ポアソン分布の応用）</h3>
             <p>
-                ここでは、「スクラビング完了までのわずかな時間（1サイクル）」の間に、<strong>同じ場所で3ビット以上のエラーが同時に発生する確率</strong>を「故障」と定義して計算しています（QMRは2ビットのエラーまで多数決で訂正可能）。
+                QMR（五重化）は多数決により<strong>2ビットまでのエラーを訂正</strong>できるため、システムが故障するのは
+                「スクラビングが間に合わない1サイクルの間に、同じ場所へ<strong>3ビット以上</strong>のエラーが重なった場合」だけです。
+                TMR（故障確率 \(\approx \lambda^2/2\)、2乗オーダー）よりさらに強く、故障確率は \(\lambda\) の<strong>3乗オーダー</strong>（\(\approx \lambda^3/6\)）まで抑えられます。
+                その分、回路面積は論理回路の約5倍必要になるため、要求信頼性と面積のトレードオフで選択します。
             </p>
             <div class="formula-box">
                 <strong>1. 1サイクルのエラー平均数 (\(\lambda\))</strong><br>
-                $$ \lambda = \text{SEU率} \times \text{1サイクルの時間} $$
+                $$ \lambda = \text{SEU率} \times T_{cycle} $$
                 <br>
                 <strong>2. 生存確率の計算 (QMR前提)</strong><br>
                 ポアソン分布により、エラーが「0回」「1回」または「2回」で済む確率を求めます。
@@ -360,12 +400,17 @@
                 $$ = e^{-\lambda} \left( 1 + \lambda + \frac{\lambda^2}{2} \right) $$
                 <br>
                 <strong>3. MTBF (平均故障間隔)</strong><br>
-                $$ MTBF = \frac{\text{1サイクルの時間}}{1 - P(Safe_{QMR})^N} $$
+                $$ MTBF = \frac{T_{cycle}}{1 - P(Safe_{QMR})^N} $$
+                <br>
+                <strong>4. 対策なし（No QMR）との比較</strong><br>
+                冗長化しない設計では、レジスタ数は論理ビット数（\(N/5\)）で、1ビットでもエラーが起きたら即故障です。
+                $$ MTBF_{raw} = \frac{1}{\text{SEU率} \times (N/5)} $$
             </div>
             <h4>用語解説</h4>
             <ul>
-                <li><strong>SEU (Single Event Upset)</strong>: 放射線等の影響でメモリの値が反転してしまう現象。</li>
+                <li><strong>SEU (Single Event Upset)</strong>: 放射線等の影響でフリップフロップの保持値が反転してしまう一時的なエラー（ソフトエラー）。</li>
                 <li><strong>QMR (Quintuple Modular Redundancy)</strong>: 同じ回路を5つ用意し、多数決をとる手法。5つ中3つが正常なら動作し、2つのエラーまで訂正可能です。</li>
+                <li><strong>スクラビング (Scrubbing)</strong>: 蓄積したエラーが3ビットに育つ前に、周期的にデータを上書き修復する処理。</li>
                 <li><strong>MTBF (Mean Time Between Failures)</strong>: 平均故障間隔。この値が大きいほど、システムは信頼性が高いと言えます。</li>
             </ul>
         </div>

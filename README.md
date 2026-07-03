@@ -3,6 +3,17 @@
 ## 概要
 このリポジトリは、ポアソン分布を用いた確率計算と、それを応用した**耐放射線設計（TMR: Triple Modular Redundancy + スクラビング）**におけるMTBF（平均故障間隔）予測を行うためのWebベース計算ツールです。
 
+耐放射線JTAGインタフェース（下記の関連リポジトリ）の放射線照射試験で得られた実測データから、ソフトエラー耐性（MTBF）を定量評価するために開発されました。
+
+## 関連リポジトリ
+
+| リポジトリ | 内容 |
+|---|---|
+| [n-nagmn/JTAG](https://github.com/n-nagmn/JTAG) | 評価対象の耐放射線JTAGインタフェース本体。TMR構成のIEEE 1149.1準拠 TAPコントローラ＋バウンダリスキャン（Cyclone V / DE1-SoC実装、OpenOCD制御）。本ツールのMTBF予測は、この設計の照射試験結果（評価レジスタ数 N=405 bits）を入力として使用する |
+| [n-nagmn/ORGAIO](https://github.com/n-nagmn/ORGAIO) | テスト対象デバイスである光再構成型ゲートアレイ（ORGA）のI/O関連デザイン。JTAGインタフェースのバウンダリスキャン（EXTEST）で駆動・観測される側 |
+
+**ワークフロー全体像:** ORGAIO（被試験デバイス側） ⇄ JTAG（テストインタフェース） → 照射試験（照射試験_v4.xlsx で集計） → 本ツールでMTBF予測
+
 単一のHTMLファイルで動作し、JavaScriptの標準数値型では扱いきれない極めて小さな確率や、巨大な桁数の階乗計算を [decimal.js](https://github.com/MikeMcl/decimal.js/) を用いて高精度（128桁精度）に処理します。
 
 ## 主な機能

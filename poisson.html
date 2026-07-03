@@ -239,7 +239,7 @@
                     <input type="number" id="seu_time" placeholder="例: 3600">
                     <span class="unit">[sec]</span>
                 </div>
-                <small style="color:#666;">※ 1bitあたりのSEU率 = 発生総数 ÷ (総試験時間 × 評価レジスタ数N) で算出します。</small>
+                <small style="color:#666;">※ SEU率 = 発生総数 ÷ 総試験時間 で計算します。</small>
             </div>
 
             <div class="input-group" id="seu_direct_group">
@@ -250,8 +250,8 @@
 
             <div class="input-group">
                 <label for="numUnits">評価レジスタ数 (N):</label>
-                <input type="number" id="numUnits" placeholder="例: 415">
-                <span class="unit">[bits]</span>
+                <input type="number" id="numUnits" placeholder="例: 405">
+                <span class="unit">[bits] ※TMR後の物理ビット総数（論理ビット数×3）</span>
             </div>
             <div class="input-group">
                 <label for="freq">スクラビング周波数:</label>
@@ -275,7 +275,7 @@
                 ここでは、「スクラビング完了までのわずかな時間（1サイクル）」の間に、<strong>同じ場所で2ビット以上のエラーが同時に発生する確率</strong>を「故障」と定義して計算しています。
             </p>
             <div class="formula-box">
-                <strong>1. 1bitあたりの平均ソフトエラー観測数（1秒） (\(\lambda\))</strong><br>
+                <strong>1. 1サイクルのエラー平均数 (\(\lambda\))</strong><br>
                 $$ \lambda = \text{SEU率} \times \text{1サイクルの時間} $$
                 <br>
                 <strong>2. 生存確率の計算 (TMR前提)</strong><br>
@@ -283,8 +283,7 @@
                 $$ P(Safe) = P(0回) + P(1回) = e^{-\lambda} + \lambda e^{-\lambda} $$
                 <br>
                 <strong>3. MTBF (平均故障間隔)</strong><br>
-                システムが1サイクル内で故障しない確率を全レジスタ数分乗算し、その確率の逆数を求めることで、平均故障間隔を算出します。
-                $$ MTBF = \frac{\text{1サイクルの時間}}{1 - P(Safe_{TMR})^N} $$
+                $$ MTBF = \frac{\text{1サイクルの時間}}{1 - P(Safe)^N} $$
             </div>
             <h4>用語解説</h4>
             <ul>
@@ -316,7 +315,7 @@
                     <input type="number" id="seu_time_qmr" placeholder="例: 3600">
                     <span class="unit">[sec]</span>
                 </div>
-                <small style="color:#666;">※ 1bitあたりのSEU率 = 発生総数 ÷ (総試験時間 × 評価レジスタ数N) で算出します。</small>
+                <small style="color:#666;">※ SEU率 = 発生総数 ÷ 総試験時間 で計算します。</small>
             </div>
 
             <div class="input-group" id="seu_direct_group_qmr">
@@ -327,8 +326,8 @@
 
             <div class="input-group">
                 <label for="numUnits_qmr">評価レジスタ数 (N):</label>
-                <input type="number" id="numUnits_qmr" placeholder="例: 415">
-                <span class="unit">[bits]</span>
+                <input type="number" id="numUnits_qmr" placeholder="例: 405">
+                <span class="unit">[bits] ※QMR後の物理ビット総数（論理ビット数×5）</span>
             </div>
             <div class="input-group">
                 <label for="freq_qmr">スクラビング周波数:</label>
@@ -352,7 +351,7 @@
                 ここでは、「スクラビング完了までのわずかな時間（1サイクル）」の間に、<strong>同じ場所で3ビット以上のエラーが同時に発生する確率</strong>を「故障」と定義して計算しています（QMRは2ビットのエラーまで多数決で訂正可能）。
             </p>
             <div class="formula-box">
-                <strong>1. 1bitあたりの1サイクルのエラー平均数 (\(\lambda\))</strong><br>
+                <strong>1. 1サイクルのエラー平均数 (\(\lambda\))</strong><br>
                 $$ \lambda = \text{SEU率} \times \text{1サイクルの時間} $$
                 <br>
                 <strong>2. 生存確率の計算 (QMR前提)</strong><br>
@@ -361,7 +360,6 @@
                 $$ = e^{-\lambda} \left( 1 + \lambda + \frac{\lambda^2}{2} \right) $$
                 <br>
                 <strong>3. MTBF (平均故障間隔)</strong><br>
-                システムが1サイクル内で故障しない確率を全レジスタ数分乗算し、その確率の逆数を求めることで、平均故障間隔を算出します。
                 $$ MTBF = \frac{\text{1サイクルの時間}}{1 - P(Safe_{QMR})^N} $$
             </div>
             <h4>用語解説</h4>
@@ -479,27 +477,27 @@
         function calculateMTBF() {
             try {
                 const mode = document.querySelector('input[name="seu_mode"]:checked').value;
-                const numStr = document.getElementById('numUnits').value;
-                let seuStr = "";
                 let calcMsg = "";
 
+                const numStr = document.getElementById('numUnits').value;
+                const freqStr = document.getElementById('freq').value;
+                if(!numStr || !freqStr) { alert("全ての項目を入力してください"); return; }
+                const n_units = new Decimal(numStr);
+                const freq = new Decimal(freqStr);
+
+                let seu;
                 if (mode === 'calc') {
                     const seuCount = document.getElementById('seu_count').value;
                     const seuTime = document.getElementById('seu_time').value;
-                    if (seuCount && seuTime && parseFloat(seuTime) !== 0) {
-                        seuStr = (parseFloat(seuCount) / (parseFloat(seuTime) * parseFloat(numStr))).toString();
-                        calcMsg = `<p style="font-size:0.9em; color:#555; margin-bottom:5px;">(実測値から算出した1ビットあたりのSEU率: <span class="calc-value">${new Decimal(seuStr).toExponential(4)}</span> errors/bit/sec)</p>`;
-                    }
+                    if (!seuCount || !seuTime || parseFloat(seuTime) === 0) { alert("全ての項目を入力してください"); return; }
+                    // 1bitあたりのSEU率 = 発生総数 ÷ (評価ビット数 × 総試験時間)
+                    seu = new Decimal(seuCount).div(n_units.times(seuTime));
+                    calcMsg = `<p style="font-size:0.9em; color:#555; margin-bottom:5px;">(実測値から算出したSEU率 = ${seuCount} ÷ (${numStr} bits × ${seuTime} sec) = <span class="calc-value">${seu.toExponential(4)}</span> errors/bit/sec)</p>`;
                 } else {
-                    seuStr = document.getElementById('seuRate').value;
+                    const seuStr = document.getElementById('seuRate').value;
+                    if(!seuStr) { alert("全ての項目を入力してください"); return; }
+                    seu = new Decimal(seuStr);
                 }
-
-                const freqStr = document.getElementById('freq').value;
-                if(!seuStr || !numStr || !freqStr) { alert("全ての項目を入力してください"); return; }
-
-                const seu = new Decimal(seuStr);
-                const n_units = new Decimal(numStr);
-                const freq = new Decimal(freqStr);
 
                 const cycle_time = new Decimal(1).div(freq);
                 const lambda_val = seu.times(cycle_time);
@@ -521,8 +519,9 @@
                 const mtbf_hours = mtbf_sec.div(3600);
                 const mtbf_years = mtbf_hours.div(24).div(365.25);
 
-                // No TMR
-                const sys_error_rate = seu.times(n_units);
+                // No TMR: 冗長化しない設計のレジスタ数は論理ビット数 N/3
+                const n_logic = n_units.div(3);
+                const sys_error_rate = seu.times(n_logic);
                 const mtbf_no_tmr_sec = sys_error_rate.isZero() ? new Decimal(Infinity) : new Decimal(1).div(sys_error_rate);
                 const mtbf_no_tmr_hours = mtbf_no_tmr_sec.div(3600);
                 const mtbf_no_tmr_years = mtbf_no_tmr_sec.div(3600).div(24).div(365.25);
@@ -583,7 +582,8 @@
 
                     <div class="comparison-box">
                         <strong>【参考】対策なし(No TMR)の場合:</strong><br>
-                        $$ MTBF_{raw} = \\frac{1}{SEU \\times N} $$
+                        <span style="font-size:0.9em; color:#555;">冗長化しない場合のレジスタ数は論理ビット数 \\(N/3 = ${n_logic.toSignificantDigits(6)}\\) [bits]</span>
+                        $$ MTBF_{raw} = \\frac{1}{SEU \\times (N/3)} $$
                         MTBF: ${mtbf_no_tmr_years.toSignificantDigits(5).toString()} 年<br>
                         <span style="font-size: 0.9em; color:#555;">
                            ≈ ${mtbf_no_tmr_hours.toSignificantDigits(5).toString()} 時間 <br>
@@ -606,27 +606,27 @@
         function calculateMTBFQMR() {
             try {
                 const mode = document.querySelector('input[name="seu_mode_qmr"]:checked').value;
-                const numStr = document.getElementById('numUnits_qmr').value;
-                let seuStr = "";
                 let calcMsg = "";
 
+                const numStr = document.getElementById('numUnits_qmr').value;
+                const freqStr = document.getElementById('freq_qmr').value;
+                if(!numStr || !freqStr) { alert("全ての項目を入力してください"); return; }
+                const n_units = new Decimal(numStr);
+                const freq = new Decimal(freqStr);
+
+                let seu;
                 if (mode === 'calc') {
                     const seuCount = document.getElementById('seu_count_qmr').value;
                     const seuTime = document.getElementById('seu_time_qmr').value;
-                    if (seuCount && seuTime && parseFloat(seuTime) !== 0) {
-                        seuStr = (parseFloat(seuCount) / (parseFloat(seuTime) * parseFloat(numStr))).toString();
-                        calcMsg = `<p style="font-size:0.9em; color:#555; margin-bottom:5px;">(実測値から算出した1ビットあたりのSEU率: <span class="calc-value">${new Decimal(seuStr).toExponential(4)}</span> errors/bit/sec)</p>`;
-                    }
+                    if (!seuCount || !seuTime || parseFloat(seuTime) === 0) { alert("全ての項目を入力してください"); return; }
+                    // 1bitあたりのSEU率 = 発生総数 ÷ (評価ビット数 × 総試験時間)
+                    seu = new Decimal(seuCount).div(n_units.times(seuTime));
+                    calcMsg = `<p style="font-size:0.9em; color:#555; margin-bottom:5px;">(実測値から算出したSEU率 = ${seuCount} ÷ (${numStr} bits × ${seuTime} sec) = <span class="calc-value">${seu.toExponential(4)}</span> errors/bit/sec)</p>`;
                 } else {
-                    seuStr = document.getElementById('seuRate_qmr').value;
+                    const seuStr = document.getElementById('seuRate_qmr').value;
+                    if(!seuStr) { alert("全ての項目を入力してください"); return; }
+                    seu = new Decimal(seuStr);
                 }
-
-                const freqStr = document.getElementById('freq_qmr').value;
-                if(!seuStr || !numStr || !freqStr) { alert("全ての項目を入力してください"); return; }
-
-                const seu = new Decimal(seuStr);
-                const n_units = new Decimal(numStr);
-                const freq = new Decimal(freqStr);
 
                 const cycle_time = new Decimal(1).div(freq);
                 const lambda_val = seu.times(cycle_time);
@@ -653,8 +653,9 @@
                 const mtbf_hours = mtbf_sec.div(3600);
                 const mtbf_years = mtbf_hours.div(24).div(365.25);
 
-                // No TMR (Reference)
-                const sys_error_rate = seu.times(n_units);
+                // No QMR (Reference): 冗長化しない設計のレジスタ数は論理ビット数 N/5
+                const n_logic = n_units.div(5);
+                const sys_error_rate = seu.times(n_logic);
                 const mtbf_no_tmr_sec = sys_error_rate.isZero() ? new Decimal(Infinity) : new Decimal(1).div(sys_error_rate);
                 // 【修正1】hoursの計算を追加
                 const mtbf_no_tmr_hours = mtbf_no_tmr_sec.div(3600);
@@ -711,7 +712,8 @@
 
                     <div class="comparison-box">
                         <strong>【参考】対策なし(No QMR)の場合:</strong><br>
-                        $$ MTBF_{raw} = \\frac{1}{SEU \\times N} $$
+                        <span style="font-size:0.9em; color:#555;">冗長化しない場合のレジスタ数は論理ビット数 \\(N/5 = ${n_logic.toSignificantDigits(6)}\\) [bits]</span>
+                        $$ MTBF_{raw} = \\frac{1}{SEU \\times (N/5)} $$
                         MTBF: ${mtbf_no_tmr_years.toSignificantDigits(5).toString()} 年<br>
                         <span style="font-size: 0.9em; color:#555;">
                            ≈ ${mtbf_no_tmr_hours.toSignificantDigits(5).toString()} 時間 <br>
